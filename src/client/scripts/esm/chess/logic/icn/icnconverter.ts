@@ -21,6 +21,7 @@ import type { MetaData } from "../../util/metadata.js";
 import type { GlobalGameState } from "../state.js";
 // @ts-ignore
 import type { GameRules } from "../../variants/gamerules.js";
+import { Vec2 } from "../../../util/math.js";
 
 
 // Type Definitions -------------------------------------------------------------------
@@ -244,6 +245,105 @@ const promotionRegexSource = `(?:=(?<promotionAbbr>${getPieceAbbrevRegexSource(f
  * The start coords, end coords, and promotion abbrev are all captured into named groups.
  */
 // const moveRegexCompact = new RegExp(`^(?<startCoordsKey>${coordsKeyRegexSource})>(?<endCoordsKey>${coordsKeyRegexSource})${getPromotionRegexSource(true)}$`);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+type BaseRay = { start: Coords, vector: Vec2 };
+
+
+/** Matches a single ray, optionally capturing its properties. */
+function getRayRegexSource(capturing: boolean): string {
+	const startCoordsKey = capturing ? '<startCoordsKey>' : ':';
+	const vec2Key = capturing ? '<vec2Key>' : ':';
+	return `(?:(?${startCoordsKey}${coordsKeyRegexSource})>(?${vec2Key}${coordsKeyRegexSource}))`;
+}
+
+/**
+ * Matches the rays segment in ICN
+ * 'Rays:x,y>dx,dy|x,y>dx,dy'
+ */
+const raysRegexSource = String.raw`(?:Rays:(?<rayPresets>${getRayRegexSource(false)}(\|${getRayRegexSource(false)})*))`; // 'Rays:x,y>dx,dy|x,y>dx,dy'
+
+/** Parses each of the rays from the matched rays from the ICN. */
+function parseRays(rays_match: string): BaseRay[] {
+	console.log("Parsing rays:", rays_match);
+
+	const rays: BaseRay[] = [];
+	const rayRegex = new RegExp(getRayRegexSource(true), "g");
+
+	// Since the rayRegex has the global flag, exec() will return the next match each time.
+	// NO STRING SPLITTING REQUIRED
+	let match: RegExpExecArray | null;
+	while ((match = rayRegex.exec(rays_match)) !== null) {
+		const startCoordsKey = match.groups!.startCoordsKey as CoordsKey;
+		const vec2Key = match.groups!.vec2Key as CoordsKey;
+
+		const start = coordutil.getCoordsFromKey(startCoordsKey);
+		const vector = coordutil.getCoordsFromKey(vec2Key);
+
+		// Make sure neither are Infinity
+		if (!isFinite(start[0]) || !isFinite(start[1]) || !isFinite(vector[0]) || !isFinite(vector[1])) {
+			throw Error(`Ray start/vector must not be Infinite. ${JSON.stringify(match.groups)}`);
+		}
+
+		rays.push({ start, vector });
+	}
+
+	// console.log("Parsed moves:", moves);
+	return rays;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /**
