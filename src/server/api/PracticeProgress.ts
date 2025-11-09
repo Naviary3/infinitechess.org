@@ -10,7 +10,7 @@ import { logEventsAndPrint } from "../middleware/logEvents.js";
 import { getMemberDataByCriteria, updateMemberColumns } from '../database/memberManager.js';
 
 
-import type { IdentifiedRequest, ParsedCookies } from "../types.js";
+import type { Request, ParsedCookies } from "../types.js";
 import type { Request, Response } from "express";
 
 
@@ -118,7 +118,7 @@ function checkmatesBeatenToStringArray(checkmates_beaten: string): string[] {
  * @param req - Express request object
  * @param res - Express response object
  */
-function postCheckmateBeaten(req: IdentifiedRequest, res: Response): void {
+function postCheckmateBeaten(req: Request, res: Response): void {
 	if (!req.memberInfo.signedIn) {
 		logEventsAndPrint("User tried to save checkmates_beaten when they weren't signed in!", 'errLog.txt');
 		res.status(401).json({ message: "Can't save checkmates_beaten, not signed in."});

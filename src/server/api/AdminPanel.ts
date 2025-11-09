@@ -16,8 +16,8 @@ import { areRolesHigherInPriority } from "../controllers/roles.js";
 import { deleteAllRefreshTokensForUser } from "../database/refreshTokenManager.js";
 import { logEventsAndPrint } from "../middleware/logEvents.js";
 
-import type { IdentifiedRequest } from "../types.js";
-import type { Response } from "express";
+import type { Request, Response } from "express";
+import type { MemberInfo } from "../types.js";
 
 
 
@@ -35,7 +35,12 @@ const validCommands = [
 	"help",
 ];
 
-function processCommand(req: IdentifiedRequest, res: Response): void {
+function processCommand(req: Request, res: Response): void {
+	if (!req.memberInfo) {
+		res.status(500).json({ error: 'Server error' }); // memberInfo should have been set by auth middleware, even if not signed in
+		return;
+	}
+
 	const command = req.params["command"]!;
 
 	const commandAndArgs = parseArgumentsFromCommand(command);
@@ -53,16 +58,16 @@ function processCommand(req: IdentifiedRequest, res: Response): void {
 		case "ban":
 			return;
 		case "delete":
-			deleteCommand(command, commandAndArgs, req, res);
+			deleteCommand(command, commandAndArgs, req.memberInfo, res);
 			return;
 		case "username":
-			usernameCommand(command, commandAndArgs, req, res);
+			usernameCommand(command, commandAndArgs, req.memberInfo, res);
 			return;
 		case "logout":
-			logoutUser(command, commandAndArgs, req, res);
+			logoutUser(command, commandAndArgs, req.memberInfo, res);
 			return;
 		case "verify":
-			verify(command, commandAndArgs, req, res);
+			verify(command, commandAndArgs, req.memberInfo, res);
 			return;
 		case "post":
 			return;
@@ -71,10 +76,10 @@ function processCommand(req: IdentifiedRequest, res: Response): void {
 		case "announce":
 			return;
 		case "userinfo":
-			getUserInfo(command, commandAndArgs, req, res);
+			getUserInfo(command, commandAndArgs, req.memberInfo, res);
 			return;
 		case "updatecontributors":
-			updateContributorsCommand(command, req, res);
+			updateContributorsCommand(command, req.memberInfo, res);
 			return;
 		case "help":
 			helpCommand(commandAndArgs, res);
@@ -112,19 +117,19 @@ function parseArgumentsFromCommand(command: string): string[] {
 	return commandAndArgs;
 }
 
-function deleteCommand(command: string, commandAndArgs: string[], req: IdentifiedRequest, res: Response): void {
+function deleteCommand(command: string, commandAndArgs: string[], memberInfo: MemberInfo, res: Response): void {
 	if (commandAndArgs.length < 3) {
 		res.status(422).send("Invalid number of arguments, expected 2, got " + (commandAndArgs.length - 1) + ".");
 		return;
 	}
 	// Valid Syntax
-	logCommand(command, req);
+	logCommand(command, memberInfo);
 	const reason = commandAndArgs[2];
 	const usernameArgument = commandAndArgs[1];
 	const { user_id, username, roles } = getMemberDataByCriteria(["user_id","username","roles"], "username", usernameArgument, { skipErrorLogging: true });
 	if (user_id === undefined) return sendAndLogResponse(res, 404, "User " + usernameArgument + " does not exist.");
 	// They were found...
-	const adminsRoles = req.memberInfo.signedIn ? req.memberInfo.roles : null;
+	const adminsRoles = memberInfo!.signedIn ? memberInfo!.roles : null;
 	const rolesOfAffectedUser = JSON.parse(roles!);
 	// Don't delete them if they are equal or higher than your status
 	if (!areRolesHigherInPriority(adminsRoles, rolesOfAffectedUser)) return sendAndLogResponse(res, 403, "Forbidden to delete " + username + ".");
@@ -133,7 +138,7 @@ function deleteCommand(command: string, commandAndArgs: string[], req: Identifie
 	sendAndLogResponse(res, 200, "Successfully deleted user " + username + ".");
 }
 
-function usernameCommand(command: string, commandAndArgs: string[], req: IdentifiedRequest, res: Response): void {
+function usernameCommand(command: string, commandAndArgs: string[], memberInfo: MemberInfo, res: Response): void {
 	if (commandAndArgs[1] === "get") {
 		if (commandAndArgs.length < 3) {
 			res.status(422).send("Invalid number of arguments, expected 2, got " + (commandAndArgs.length - 1) + ".");
@@ -145,7 +150,7 @@ function usernameCommand(command: string, commandAndArgs: string[], req: Identif
 			return;
 		}
 		// Valid Syntax
-		logCommand(command, req);
+		logCommand(command, memberInfo);
 		const { username } = getMemberDataByCriteria(["username"], "user_id", parsedId, { skipErrorLogging: true });
 		if (username === undefined) sendAndLogResponse(res, 404, "User with id " + parsedId + " does not exist.");
 		else sendAndLogResponse(res, 200, username);
@@ -166,13 +171,13 @@ function usernameCommand(command: string, commandAndArgs: string[], req: Identif
 	}
 }
 
-function logoutUser(command: string, commandAndArgs: string[], req: IdentifiedRequest, res: Response): void {
+function logoutUser(command: string, commandAndArgs: string[], memberInfo: MemberInfo, res: Response): void {
 	if (commandAndArgs.length < 2) {
 		res.status(422).send("Invalid number of arguments, expected 1, got " + (commandAndArgs.length - 1) + ".");
 		return;
 	}
 	// Valid Syntax
-	logCommand(command, req);
+	logCommand(command, memberInfo);
 	const usernameArgument = commandAndArgs[1];
 	const { user_id, username } = getMemberDataByCriteria(["user_id","username"], "username", usernameArgument, { skipErrorLogging: true });
 	if (user_id !== undefined) {
@@ -192,13 +197,13 @@ function logoutUser(command: string, commandAndArgs: string[], req: IdentifiedRe
 	}
 }
 
-function verify(command: string, commandAndArgs: string[], req: IdentifiedRequest, res: Response): void {
+function verify(command: string, commandAndArgs: string[], memberInfo: MemberInfo, res: Response): void {
 	if (commandAndArgs.length < 2) {
 		res.status(422).send("Invalid number of arguments, expected 1, got " + (commandAndArgs.length - 1) + ".");
 		return;
 	}
 	// Valid Syntax
-	logCommand(command, req);
+	logCommand(command, memberInfo);
 	const usernameArgument = commandAndArgs[1];
 	// This method works without us having to confirm they exist first
 	const result = manuallyVerifyUser(usernameArgument!);  // { success, username, reason }
@@ -206,13 +211,13 @@ function verify(command: string, commandAndArgs: string[], req: IdentifiedReques
 	else sendAndLogResponse(res, 500, result.reason); // Failure message
 }
 
-function getUserInfo(command: string, commandAndArgs: string[], req: IdentifiedRequest, res: Response): void {
+function getUserInfo(command: string, commandAndArgs: string[], memberInfo: MemberInfo, res: Response): void {
 	if (commandAndArgs.length < 2) {
 		res.status(422).send("Invalid number of arguments, expected 1, got " + (commandAndArgs.length - 1) + ".");
 		return;
 	}
 	// Valid Syntax
-	logCommand(command, req);
+	logCommand(command, memberInfo);
 	const username = commandAndArgs[1];
 	const memberData = getMemberDataByCriteria(["user_id", "username", "roles", "joined", "last_seen", "preferences", "is_verified", "is_verification_notified", "username_history", "checkmates_beaten"], "username", username, { skipErrorLogging: true });
 	if (Object.keys(memberData).length === 0) { // Empty (member not found)
@@ -223,8 +228,8 @@ function getUserInfo(command: string, commandAndArgs: string[], req: IdentifiedR
 	}
 }
 
-function updateContributorsCommand(command: string, req: IdentifiedRequest, res: Response): void {
-	logCommand(command, req);
+function updateContributorsCommand(command: string, memberInfo: MemberInfo, res: Response): void {
+	logCommand(command, memberInfo);
 	refreshGitHubContributorsList();
 	sendAndLogResponse(res, 200, "Contributors should now be updated!");
 }
@@ -274,9 +279,9 @@ function helpCommand(commandAndArgs: string[], res: Response): void {
 	}
 }
 
-function logCommand(command: string, req: IdentifiedRequest): void {
-	if (req.memberInfo.signedIn) {
-		logEventsAndPrint(`Command executed by admin "${req.memberInfo.username}" of id "${req.memberInfo.user_id}":   ` + command, "adminCommands.txt");
+function logCommand(command: string, memberInfo: MemberInfo): void {
+	if (memberInfo.signedIn) {
+		logEventsAndPrint(`Command executed by admin "${memberInfo.username}" of id "${memberInfo.user_id}":   ` + command, "adminCommands.txt");
 	} else throw new Error('Admin SHOULD have been logged in by this point. DANGEROUS');
 }
 

@@ -1,26 +1,6 @@
 
 // src/types.ts
 
-import { Request } from "express";
-
-/**
- * A req object, but with their memberInfo defined. This may include
- * information about their signed-in status, or their browser-id cookie.
- * Point is we now have an identifier for them.
- */
-interface IdentifiedRequest extends Request {
-	memberInfo: MemberInfo
-}
-
-/**
- * Single source of truth for determining whether a req object has been
- * given all properties required for the {@link IdentifiedRequest} type.
- */
-function isRequestIdentified(req: Request): req is IdentifiedRequest {
-	return !!req.memberInfo;
-}
-
-
 
 /** Information to identify a specific user, logged in or not. */
 type MemberInfo = SignedInMemberInfo | SignedOutMemberInfo;
@@ -63,13 +43,7 @@ interface ParsedCookies {
 }
 
 
-
-export {
-	isRequestIdentified,
-};
-
 export type {
-	IdentifiedRequest,
 	SignedInMemberInfo,
 	MemberInfo,
 	AuthMemberInfo,

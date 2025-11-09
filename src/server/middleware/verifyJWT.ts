@@ -7,7 +7,7 @@
  * if they are logged in.
  */
 
-import { IdentifiedRequest, isRequestIdentified, ParsedCookies } from '../types.js';
+import { isRequestIdentified, ParsedCookies } from '../types.js';
 import { freshenSession, revokeSession } from '../controllers/authenticationTokens/sessionManager.js';
 import { isAccessTokenValid, isRefreshTokenValid } from '../controllers/authenticationTokens/tokenValidator.js';
 import { CustomWebSocket } from '../socket/socketUtility.js';
@@ -29,8 +29,8 @@ function verifyJWT(req: Request, res: Response, next: NextFunction): void {
 	const cookies: ParsedCookies = req.cookies;
 	req.memberInfo = { signedIn: false, browser_id: cookies['browser-id'] };
 
-	// After this line, typescript then thinks the req is of the IdentifiedRequest type.
-	if (!isRequestIdentified(req)) throw Error("Not all required IdentifiedRequest properties were set!");
+	// After this line, typescript then thinks the req is of the Request type.
+	if (!isRequestIdentified(req)) throw Error("Not all required Request properties were set!");
 
 	const hasAccessToken = verifyAccessToken(req, res);
 	if (!hasAccessToken) verifyRefreshToken(req, res);
@@ -44,7 +44,7 @@ function verifyJWT(req: Request, res: Response, next: NextFunction): void {
  * 
  * Returns whether they have a valid access token or not.
  */
-function verifyAccessToken(req: IdentifiedRequest, res: Response): boolean {
+function verifyAccessToken(req: Request, res: Response): boolean {
 	const authHeader = req.headers.authorization;
 	if (!authHeader) return false; // No authentication header included
 	if (!authHeader.startsWith('Bearer ')) return false; // Authentication header doesn't look correct
@@ -74,7 +74,7 @@ function verifyAccessToken(req: IdentifiedRequest, res: Response): boolean {
  * updates the connections `memberInfo` property if it is valid (are signed in).
  * Only call if they did not have a valid access token, as this performs database queries!
  */
-function verifyRefreshToken(req: IdentifiedRequest, res: Response): void {
+function verifyRefreshToken(req: Request, res: Response): void {
 	const cookies: ParsedCookies = req.cookies;
 	const refreshToken = cookies.jwt;
 	if (!refreshToken) return; // No refresh token present
